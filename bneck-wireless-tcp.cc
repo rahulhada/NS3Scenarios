@@ -49,6 +49,7 @@
  */
 
 #include "ns3/core-module.h"
+#include "ns3/config-store.h"
 #include "ns3/point-to-point-module.h"
 #include "ns3/network-module.h"
 #include "ns3/applications-module.h"
@@ -64,9 +65,29 @@ using namespace ns3;
 
 NS_LOG_COMPONENT_DEFINE ("Bneck-Wireless-TCP");
 
-void ChangeWindow(const uint32_t oldValue,uint32_t newValue)
+void changeWindow(const uint32_t oldValue,uint32_t newValue)
 {
 	NS_LOG_INFO("cwnd-size:"<<Simulator::Now().GetSeconds()<<"  "<<newValue);
+}
+void flowControl(const uint32_t oldValue,uint32_t newValue)
+{
+	NS_LOG_INFO("flow:"<<Simulator::Now().GetSeconds()<<"  "<<newValue);
+}
+void traceRTO(const Time oldValue,Time newValue)
+{
+	NS_LOG_INFO(Simulator::Now().GetSeconds()<<"  "<<newValue.GetSeconds());
+}
+void stateChange(const TcpSocket::TcpStates_t oldvalue,const TcpSocket::TcpStates_t newvalue)
+{
+	NS_LOG_INFO("State--Change"<<"--"<<Simulator::Now().GetSeconds()<<"--"<<newvalue);
+}
+void seqChange(SequenceNumber32 oldSeq, SequenceNumber32 newSeq)
+{
+	NS_LOG_INFO("Old SeqNo:"<<Simulator::Now().GetSeconds()<<oldSeq.GetValue()<<"--"<<newSeq.GetValue());
+}
+void highSeqChange(SequenceNumber32 oldSeq, SequenceNumber32 newSeq)
+{
+	NS_LOG_INFO(Simulator::Now().GetSeconds()<<"----"<<"NewSeqNo:"<<newSeq.GetValue()<<"----"<<"Old SeqNo:"<<oldSeq.GetValue());
 }
 class TestApp:public Application
 {
@@ -166,12 +187,24 @@ main (int argc, char *argv[])
   std::string tcpType = "NewReno";
 
   bool cwndTraceEnable = false;
+  bool rwndTraceEnable =false;
+  bool rtoTraceEnable = false;
+  bool stateTraceEnable = false;
+  bool nextTSeqTraceEnable = false;
+  bool highSeqTraceEnable = true;
   bool enableAnim=false;
 
   CommandLine cmd;
   cmd.AddValue ("nRightWifi", "Number of right Wifi Station Nodes", nRightWifi);
   cmd.AddValue ("nLeftWifi", "Number of wifi STA devices", nLeftWifi);
+
   cmd.AddValue("cwndTraceEnable","Enable the Congestion Window Trace",cwndTraceEnable);
+  cmd.AddValue("rwndTraceEnable","Enable the RWND Trace",rwndTraceEnable);
+  cmd.AddValue("rtoTraceEnable","Enable the RTO Trace",rtoTraceEnable);
+  cmd.AddValue("stateTraceEnable","Enable the State Change Trace",stateTraceEnable);
+  cmd.AddValue("nextTSeqTraceEnable","Enable the Next Tx Sequence Trace",nextTSeqTraceEnable);
+  cmd.AddValue("highSeqTraceEnable","Enable the High Sequence Trace",highSeqTraceEnable);
+
   cmd.AddValue("tcpType","Change TCP variant(NewReno,Reno,Tahoe,Westwood etc.)",tcpType);
   cmd.AddValue("enableAnim","Enable/Disable Animation",enableAnim);
   cmd.Parse (argc,argv);
@@ -201,7 +234,7 @@ main (int argc, char *argv[])
   NetDeviceContainer leftWifiDevices,ap1WifiDevices;
 
   YansWifiChannelHelper channel = YansWifiChannelHelper::Default ();
-  YansWifiPhyHelper phy = YansWifiPhyHelper::Default ();
+	 YansWifiPhyHelper phy = YansWifiPhyHelper::Default ();
   phy.SetChannel (channel.Create ());
 
   WifiHelper wifi = WifiHelper::Default ();
@@ -345,10 +378,40 @@ main (int argc, char *argv[])
   leftWifiNodes.Get(1)->AddApplication(app);
   app->SetStartTime(Seconds(35.0));
   app->SetStopTime(Seconds(40.0));
+  /*
+   * Tracing of TCP Data like cwnd , rwnd , rto etc.
+   */
   if(cwndTraceEnable)
+	  ns3TcpSocket->TraceConnectWithoutContext("CongestionWindow",MakeCallback(&changeWindow));
+  else if(rwndTraceEnable)
   {
-	  ns3TcpSocket->TraceConnectWithoutContext("CongestionWindow",MakeCallback(&ChangeWindow));
+	  NS_LOG_INFO("Trace:RWND");
+	  ns3TcpSocket->TraceConnectWithoutContext("RWND",MakeCallback(&flowControl));
   }
+  else if(rtoTraceEnable)
+  {
+	  NS_LOG_INFO("Trace:RTO");
+	  ns3TcpSocket->TraceConnectWithoutContext("RTO",MakeCallback(&traceRTO));// Not Working
+  }
+  else if(stateTraceEnable)
+  {
+	  NS_LOG_INFO("Trace:State Change");
+	  ns3TcpSocket->TraceConnectWithoutContext("State",MakeCallback(&stateChange));
+  }
+  else if(nextTSeqTraceEnable)
+  {
+	  NS_LOG_INFO("Trace:Next Seq");
+	  ns3TcpSocket->TraceConnectWithoutContext("NextTxSequence",MakeCallback(&seqChange));
+  }
+
+  else if(highSeqTraceEnable)
+  {
+	  NS_LOG_INFO("Trace:Highest Seq");
+	  ns3TcpSocket->TraceConnectWithoutContext("HighestSequence",MakeCallback(&highSeqChange));
+  }
+
+  else
+	  NS_LOG_INFO("NO Trace");
   /*
    * Create UDP echo application and install it on one
    * of the left and right wifi station node
