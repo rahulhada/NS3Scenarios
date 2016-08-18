@@ -10,3 +10,5 @@ Step-3 Open terminal
 Step-4 Goto root folder of ns3.XX
 Step-5 type following command
       ./waf --run scratch/scenarioX
+      
+I would like to dedicated this repo to Dr.M.S Gaur for giving the idea of NS3 Scenarios.  
